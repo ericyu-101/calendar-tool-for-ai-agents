@@ -1,0 +1,28 @@
+{
+  "name": "calendar-mcp-server",
+  "version": "0.1.0",
+  "description": "A Model Context Protocol (MCP) server providing a session-scoped calendar service for AI agents.",
+  "type": "module",
+  "bin": {
+    "calendar-mcp": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "calendar",
+    "ai",
+    "agent"
+  ],
+  "author": "Vibe Coding",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.1.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
