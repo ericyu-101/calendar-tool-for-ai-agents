@@ -2,6 +2,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Cache-busting arg for CI/Portainer/compose rebuilds
+ARG BUILD_ID=dev
+LABEL org.opencontainers.image.revision=$BUILD_ID
+
 # Make npm networking more robust in CI/builders
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 RUN npm config set registry "$NPM_REGISTRY" \

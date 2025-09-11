@@ -17,7 +17,11 @@ services:
       retries: 20
 
   service:
-    build: .
+    build:
+      context: .
+      args:
+        BUILD_ID: "force-2025-09-11-15-40"
+        NPM_REGISTRY: "https://registry.npmjs.org/"
     container_name: calendar_mcp_server
     restart: unless-stopped
     environment:
