@@ -53,7 +53,73 @@ const server = new Server(
 // Initialize DB schema before handling tools
 await initSchema();
 
-// Compatibility: try multiple tool registration APIs exposed by different SDK versions
+// Compatibility: register tools using SDK APIs if available; otherwise
+// fall back to request-schema-based registration by discovering schemas at runtime.
+async function resolveToolSchemas() {
+  const candidateModules = [
+    "@modelcontextprotocol/sdk/types.js",
+    "@modelcontextprotocol/sdk/types",
+    "@modelcontextprotocol/sdk/server/types.js",
+    "@modelcontextprotocol/sdk/server/types",
+    "@modelcontextprotocol/sdk/shared/protocol.js",
+    "@modelcontextprotocol/sdk/dist/esm/shared/protocol.js",
+  ];
+  for (const mod of candidateModules) {
+    try {
+      const m = await import(mod);
+      const values = Object.values(m);
+      const findByMethod = (method) =>
+        values.find((v) => v && v.shape && v.shape.method && v.shape.method.value === method);
+      const listSchema = findByMethod("tools/list");
+      const callSchema = findByMethod("tools/call");
+      if (listSchema && callSchema) return { listSchema, callSchema };
+    } catch {}
+  }
+  return null;
+}
+
+const toolRegistry = new Map();
+let schemasWired = false;
+
+function setSchemaHandler(schema, handler) {
+  for (const method of ["setRequestHandler", "addRequestHandler", "onRequest"]) {
+    const fn = server?.[method];
+    if (typeof fn === "function") {
+      fn.call(server, schema, handler);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function ensureSchemaFallback() {
+  if (schemasWired) return true;
+  const schemas = await resolveToolSchemas();
+  if (!schemas) return false;
+  const ok1 = setSchemaHandler(schemas.listSchema, async () => {
+    const tools = Array.from(toolRegistry.values()).map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
+    return { tools };
+  });
+  const ok2 = setSchemaHandler(schemas.callSchema, async (req) => {
+    const p = req?.params ?? req ?? {};
+    const name = p.name ?? p.tool ?? p.toolName;
+    const args = p.arguments ?? p.args ?? p.input ?? {};
+    const t = toolRegistry.get(name);
+    if (!t) {
+      const err = new Error(`Tool not found: ${name}`);
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+    return await t.handler({ input: args });
+  });
+  schemasWired = ok1 && ok2;
+  return schemasWired;
+}
+
 const registerTool = (name, schema, handler) => {
   const def = { name, description: schema.description, inputSchema: schema.inputSchema };
   const tryCall = (method, args) => {
@@ -61,9 +127,7 @@ const registerTool = (name, schema, handler) => {
     if (typeof fn === "function") {
       try {
         return fn.apply(server, args);
-      } catch {
-        // try next signature
-      }
+      } catch {}
     }
     return undefined;
   };
@@ -73,7 +137,11 @@ const registerTool = (name, schema, handler) => {
   if (tryCall("addTool", [def, handler])) return;
   if (tryCall("registerTool", [name, schema, handler])) return;
   if (tryCall("registerTool", [def, handler])) return;
-  throw new Error("MCP SDK: no tool registration API found on Server instance");
+  // Fallback path: register into local registry and ensure schema handlers
+  toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
+  // Trigger async wiring; top-level await is already used above so we can rely on it
+  // but we won't block registration since handlers will be present by first call/list.
+  ensureSchemaFallback();
 };
 
 // create_event
