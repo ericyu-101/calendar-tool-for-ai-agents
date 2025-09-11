@@ -1,17 +1,7 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createRequire } from "module";
-
-// Simple in-memory store: sessionId -> (eventId -> event)
-const sessions = new Map();
-
-function ensureSession(sessionId) {
-  if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, new Map());
-  }
-  return sessions.get(sessionId);
-}
+import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
 
 function toDate(value, fieldName) {
   const d = new Date(value);
@@ -38,46 +28,15 @@ function serializeEvent(event) {
     description: event.description ?? null,
     location: event.location ?? null,
     attendees: event.attendees ?? [],
-    start: event.start.toISOString(),
-    end: event.end.toISOString(),
+    start: new Date(event.start).toISOString(),
+    end: new Date(event.end).toISOString(),
     status: event.status ?? "confirmed",
-    createdAt: event.createdAt.toISOString(),
-    updatedAt: event.updatedAt.toISOString(),
+    createdAt: new Date(event.created_at ?? event.createdAt).toISOString(),
+    updatedAt: new Date(event.updated_at ?? event.updatedAt).toISOString(),
   };
 }
 
-function listEventsInRange(store, rangeStart, rangeEnd) {
-  const events = Array.from(store.values()).map(serializeEvent);
-  if (!rangeStart && !rangeEnd) return events.sort((a, b) => a.start.localeCompare(b.start));
-
-  const rs = rangeStart ? toDate(rangeStart, "range_start") : null;
-  const re = rangeEnd ? toDate(rangeEnd, "range_end") : null;
-
-  const filtered = events.filter((e) => {
-    const s = new Date(e.start);
-    const en = new Date(e.end);
-    if (rs && en < rs) return false;
-    if (re && s > re) return false;
-    return true;
-  });
-  return filtered.sort((a, b) => a.start.localeCompare(b.start));
-}
-
-function requireSessionAndEvent(sessionId, eventId) {
-  const store = sessions.get(sessionId);
-  if (!store) {
-    const err = new Error("Session not found.");
-    err.code = "NOT_FOUND";
-    throw err;
-  }
-  const event = store.get(eventId);
-  if (!event) {
-    const err = new Error("Event not found.");
-    err.code = "NOT_FOUND";
-    throw err;
-  }
-  return { store, event };
-}
+// DB-backed utility: obtain events in range handled in SQL layer
 
 const server = new Server(
   {
@@ -90,6 +49,9 @@ const server = new Server(
     },
   }
 );
+
+// Initialize DB schema before handling tools
+await initSchema();
 
 // create_event
 server.tool(
@@ -114,8 +76,6 @@ server.tool(
   },
   async ({ input }) => {
     const sessionId = input.session_id;
-    const store = ensureSession(sessionId);
-
     const start = toDate(input.start, "start");
     const end = toDate(input.end, "end");
     validateEventTimes(start, end);
@@ -124,18 +84,18 @@ server.tool(
     const now = new Date();
     const event = {
       id,
+      session_id: sessionId,
       title: input.title,
       description: input.description ?? null,
       location: input.location ?? null,
       attendees: Array.isArray(input.attendees) ? input.attendees : [],
-      start,
-      end,
+      start: start.toISOString(),
+      end: end.toISOString(),
       status: input.status ?? "confirmed",
-      createdAt: now,
-      updatedAt: now,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
     };
-    store.set(event.id, event);
-
+    await dbCreate(event);
     return {
       content: [
         {
@@ -164,9 +124,12 @@ server.tool(
     },
   },
   async ({ input }) => {
-    const store = ensureSession(input.session_id);
-    const events = listEventsInRange(store, input.range_start, input.range_end);
-    return { content: [{ type: "json", json: events }] };
+    const events = await dbList(
+      input.session_id,
+      input.range_start ? toDate(input.range_start, "range_start").toISOString() : undefined,
+      input.range_end ? toDate(input.range_end, "range_end").toISOString() : undefined
+    );
+    return { content: [{ type: "json", json: events.map(serializeEvent) }] };
   }
 );
 
@@ -186,7 +149,12 @@ server.tool(
     },
   },
   async ({ input }) => {
-    const { event } = requireSessionAndEvent(input.session_id, input.event_id);
+    const event = await dbGet(input.session_id, input.event_id);
+    if (!event) {
+      const err = new Error("Event not found.");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
     return { content: [{ type: "json", json: serializeEvent(event) }] };
   }
 );
@@ -214,21 +182,35 @@ server.tool(
     },
   },
   async ({ input }) => {
-    const { store, event } = requireSessionAndEvent(input.session_id, input.event_id);
+    const existing = await dbGet(input.session_id, input.event_id);
+    if (!existing) {
+      const err = new Error("Event not found.");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
 
-    if (input.title !== undefined) event.title = input.title;
-    if (input.description !== undefined) event.description = input.description;
-    if (input.location !== undefined) event.location = input.location;
-    if (input.attendees !== undefined) event.attendees = Array.isArray(input.attendees) ? input.attendees : [];
-    if (input.start !== undefined) event.start = toDate(input.start, "start");
-    if (input.end !== undefined) event.end = toDate(input.end, "end");
-    if (input.status !== undefined) event.status = input.status;
+    const next = { ...existing };
+    if (input.title !== undefined) next.title = input.title;
+    if (input.description !== undefined) next.description = input.description;
+    if (input.location !== undefined) next.location = input.location;
+    if (input.attendees !== undefined) next.attendees = Array.isArray(input.attendees) ? input.attendees : [];
+    if (input.start !== undefined) next.start = toDate(input.start, "start").toISOString();
+    if (input.end !== undefined) next.end = toDate(input.end, "end").toISOString();
+    if (input.status !== undefined) next.status = input.status;
 
-    validateEventTimes(event.start, event.end);
-    event.updatedAt = new Date();
-    store.set(event.id, event);
+    validateEventTimes(new Date(next.start), new Date(next.end));
 
-    return { content: [{ type: "json", json: serializeEvent(event) }] };
+    const patch = {};
+    if (input.title !== undefined) patch.title = next.title;
+    if (input.description !== undefined) patch.description = next.description;
+    if (input.location !== undefined) patch.location = next.location;
+    if (input.attendees !== undefined) patch.attendees = next.attendees;
+    if (input.start !== undefined) patch.start = next.start;
+    if (input.end !== undefined) patch.end = next.end;
+    if (input.status !== undefined) patch.status = next.status;
+
+    const updated = await dbUpdate(input.session_id, input.event_id, patch);
+    return { content: [{ type: "json", json: serializeEvent(updated) }] };
   }
 );
 
@@ -248,9 +230,8 @@ server.tool(
     },
   },
   async ({ input }) => {
-    const store = ensureSession(input.session_id);
-    const existed = store.delete(input.event_id);
-    return { content: [{ type: "json", json: { success: existed } }] };
+    const success = await dbDelete(input.session_id, input.event_id);
+    return { content: [{ type: "json", json: { success } }] };
   }
 );
 
@@ -266,10 +247,18 @@ server.tool(
     },
   },
   async () => {
-    return { content: [{ type: "json", json: Array.from(sessions.keys()) }] };
+    const ids = await dbListSessions();
+    return { content: [{ type: "json", json: ids }] };
   }
 );
 
 const transport = new StdioServerTransport();
 server.connect(transport);
 
+// Graceful shutdown
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, async () => {
+    try { await closePool(); } catch {}
+    process.exit(0);
+  });
+}
