@@ -53,18 +53,34 @@ const server = new Server(
 // Initialize DB schema before handling tools
 await initSchema();
 
-// Compatibility: support different SDK tool registration names across versions
+// Compatibility: support different SDK tool registration names and signatures
 const registerTool = (name, schema, handler) => {
-  if (typeof server.tool === "function") {
-    return server.tool(name, schema, handler);
+  const def = {
+    name,
+    description: schema.description,
+    inputSchema: schema.inputSchema,
+  };
+  const candidates = [
+    ["tool", [name, schema, handler]],
+    ["tool", [def, handler]],
+    ["addTool", [name, schema, handler]],
+    ["addTool", [def, handler]],
+    ["registerTool", [name, schema, handler]],
+    ["registerTool", [def, handler]],
+  ];
+  for (const [method, args] of candidates) {
+    const fn = server?.[method];
+    if (typeof fn === "function") {
+      try {
+        return fn.apply(server, args);
+      } catch (_) {
+        // try next signature
+      }
+    }
   }
-  if (typeof server.addTool === "function") {
-    return server.addTool(name, schema, handler);
-  }
-  if (typeof server.registerTool === "function") {
-    return server.registerTool(name, schema, handler);
-  }
-  throw new Error("MCP SDK: no tool registration method found (tool/addTool/registerTool)");
+  throw new Error(
+    "MCP SDK: no compatible tool registration method/signature found (tried tool/addTool/registerTool)"
+  );
 };
 
 // create_event

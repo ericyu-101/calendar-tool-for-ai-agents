@@ -3,6 +3,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: calendar_mcp_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -19,6 +20,7 @@ services:
   server:
     build: .
     container_name: calendar_mcp_server
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/calendar_mcp
       NODE_ENV: production
