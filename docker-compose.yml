@@ -17,7 +17,7 @@ services:
       retries: 20
       start_period: 5s
 
-  server:
+  service:
     build: .
     container_name: calendar_mcp_server
     restart: unless-stopped
