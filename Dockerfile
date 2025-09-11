@@ -17,9 +17,9 @@ RUN npm config set registry "$NPM_REGISTRY" \
 COPY package*.json ./
 # Prefer npm ci when a lockfile exists for reproducible builds; fall back to install
 RUN if [ -f package-lock.json ]; then \
-      npm ci --omit=dev --no-audit --no-fund --no-optional --progress=false; \
+      npm ci --omit=dev --omit=optional --no-audit --no-fund --progress=false; \
     else \
-      npm install --omit=dev --no-audit --no-fund --no-optional --progress=false; \
+      npm install --omit=dev --omit=optional --no-audit --no-fund --progress=false; \
     fi
 
 # Copy source
