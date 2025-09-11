@@ -9,6 +9,12 @@ services:
       POSTGRES_DB: calendar_mcp
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   server:
     build: .
@@ -17,7 +23,8 @@ services:
       DATABASE_URL: postgres://postgres:postgres@db:5432/calendar_mcp
       NODE_ENV: production
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     stdin_open: true
     tty: true
 
