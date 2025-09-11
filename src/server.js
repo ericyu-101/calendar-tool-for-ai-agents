@@ -53,8 +53,22 @@ const server = new Server(
 // Initialize DB schema before handling tools
 await initSchema();
 
+// Compatibility: support different SDK tool registration names across versions
+const registerTool = (name, schema, handler) => {
+  if (typeof server.tool === "function") {
+    return server.tool(name, schema, handler);
+  }
+  if (typeof server.addTool === "function") {
+    return server.addTool(name, schema, handler);
+  }
+  if (typeof server.registerTool === "function") {
+    return server.registerTool(name, schema, handler);
+  }
+  throw new Error("MCP SDK: no tool registration method found (tool/addTool/registerTool)");
+};
+
 // create_event
-server.tool(
+registerTool(
   "create_event",
   {
     description: "Create a calendar event in a given session.",
@@ -108,7 +122,7 @@ server.tool(
 );
 
 // list_events
-server.tool(
+registerTool(
   "list_events",
   {
     description: "List events for a session, optionally filtering by a time range.",
@@ -134,7 +148,7 @@ server.tool(
 );
 
 // get_event
-server.tool(
+registerTool(
   "get_event",
   {
     description: "Get a single event by ID within a session.",
@@ -160,7 +174,7 @@ server.tool(
 );
 
 // update_event
-server.tool(
+registerTool(
   "update_event",
   {
     description: "Update fields on an existing event.",
@@ -215,7 +229,7 @@ server.tool(
 );
 
 // delete_event
-server.tool(
+registerTool(
   "delete_event",
   {
     description: "Delete an event by ID within a session.",
@@ -236,7 +250,7 @@ server.tool(
 );
 
 // list_sessions (utility)
-server.tool(
+registerTool(
   "list_sessions",
   {
     description: "List all session IDs currently in memory.",
