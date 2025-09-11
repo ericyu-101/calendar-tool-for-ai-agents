@@ -53,13 +53,49 @@ const server = new Server(
 // Initialize DB schema before handling tools
 await initSchema();
 
-// Compatibility: support different SDK tool registration names and signatures
+// Compatibility: implement a tool registry and wire handlers if SDK lacks direct APIs
+const toolRegistry = new Map();
+let toolsWired = false;
+
+function setRequestHandlerCompat(method, handler) {
+  if (typeof server.setRequestHandler === "function") return server.setRequestHandler(method, handler);
+  if (typeof server.addRequestHandler === "function") return server.addRequestHandler(method, handler);
+  if (typeof server.onRequest === "function") return server.onRequest(method, handler);
+  // If the SDK provides direct tool registration, we'll use that via registerTool; otherwise, lacking
+  // a request handler API would make tools impossible to wire.
+  return undefined;
+}
+
+function ensureToolsWired() {
+  if (toolsWired) return;
+  const wired = setRequestHandlerCompat("tools/list", async () => {
+    const tools = Array.from(toolRegistry.values()).map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
+    return { tools };
+  });
+  setRequestHandlerCompat("tools/call", async (params) => {
+    const p = params?.params ?? params ?? {};
+    const name = p.name ?? p.tool ?? p?.toolName;
+    const args = p.arguments ?? p.args ?? p.input ?? {};
+    const t = toolRegistry.get(name);
+    if (!t) {
+      const err = new Error(`Tool not found: ${name}`);
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+    const result = await t.handler({ input: args });
+    // Expect handlers to return { content: [...] }
+    return result;
+  });
+  toolsWired = Boolean(wired || typeof server.tool !== "function");
+}
+
 const registerTool = (name, schema, handler) => {
-  const def = {
-    name,
-    description: schema.description,
-    inputSchema: schema.inputSchema,
-  };
+  // First try SDK-native registration if present
+  const def = { name, description: schema.description, inputSchema: schema.inputSchema };
   const candidates = [
     ["tool", [name, schema, handler]],
     ["tool", [def, handler]],
@@ -73,14 +109,12 @@ const registerTool = (name, schema, handler) => {
     if (typeof fn === "function") {
       try {
         return fn.apply(server, args);
-      } catch (_) {
-        // try next signature
-      }
+      } catch (_) {}
     }
   }
-  throw new Error(
-    "MCP SDK: no compatible tool registration method/signature found (tried tool/addTool/registerTool)"
-  );
+  // Fallback: store locally and ensure request handlers exist
+  toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
+  ensureToolsWired();
 };
 
 // create_event
