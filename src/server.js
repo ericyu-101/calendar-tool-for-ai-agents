@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { Server } from "@modelcontextprotocol/sdk/server";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
 
@@ -53,68 +53,27 @@ const server = new Server(
 // Initialize DB schema before handling tools
 await initSchema();
 
-// Compatibility: implement a tool registry and wire handlers if SDK lacks direct APIs
-const toolRegistry = new Map();
-let toolsWired = false;
-
-function setRequestHandlerCompat(method, handler) {
-  if (typeof server.setRequestHandler === "function") return server.setRequestHandler(method, handler);
-  if (typeof server.addRequestHandler === "function") return server.addRequestHandler(method, handler);
-  if (typeof server.onRequest === "function") return server.onRequest(method, handler);
-  // If the SDK provides direct tool registration, we'll use that via registerTool; otherwise, lacking
-  // a request handler API would make tools impossible to wire.
-  return undefined;
-}
-
-function ensureToolsWired() {
-  if (toolsWired) return;
-  const wired = setRequestHandlerCompat("tools/list", async () => {
-    const tools = Array.from(toolRegistry.values()).map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    }));
-    return { tools };
-  });
-  setRequestHandlerCompat("tools/call", async (params) => {
-    const p = params?.params ?? params ?? {};
-    const name = p.name ?? p.tool ?? p?.toolName;
-    const args = p.arguments ?? p.args ?? p.input ?? {};
-    const t = toolRegistry.get(name);
-    if (!t) {
-      const err = new Error(`Tool not found: ${name}`);
-      err.code = "NOT_FOUND";
-      throw err;
-    }
-    const result = await t.handler({ input: args });
-    // Expect handlers to return { content: [...] }
-    return result;
-  });
-  toolsWired = Boolean(wired || typeof server.tool !== "function");
-}
-
+// Compatibility: try multiple tool registration APIs exposed by different SDK versions
 const registerTool = (name, schema, handler) => {
-  // First try SDK-native registration if present
   const def = { name, description: schema.description, inputSchema: schema.inputSchema };
-  const candidates = [
-    ["tool", [name, schema, handler]],
-    ["tool", [def, handler]],
-    ["addTool", [name, schema, handler]],
-    ["addTool", [def, handler]],
-    ["registerTool", [name, schema, handler]],
-    ["registerTool", [def, handler]],
-  ];
-  for (const [method, args] of candidates) {
+  const tryCall = (method, args) => {
     const fn = server?.[method];
     if (typeof fn === "function") {
       try {
         return fn.apply(server, args);
-      } catch (_) {}
+      } catch {
+        // try next signature
+      }
     }
-  }
-  // Fallback: store locally and ensure request handlers exist
-  toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
-  ensureToolsWired();
+    return undefined;
+  };
+  if (tryCall("tool", [name, schema, handler])) return;
+  if (tryCall("tool", [def, handler])) return;
+  if (tryCall("addTool", [name, schema, handler])) return;
+  if (tryCall("addTool", [def, handler])) return;
+  if (tryCall("registerTool", [name, schema, handler])) return;
+  if (tryCall("registerTool", [def, handler])) return;
+  throw new Error("MCP SDK: no tool registration API found on Server instance");
 };
 
 // create_event
