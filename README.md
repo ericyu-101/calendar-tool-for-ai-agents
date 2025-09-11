@@ -1,27 +1,17 @@
 # Calendar MCP Server
 
-An MCP (Model Context Protocol) server that provides a session-scoped calendar service designed for AI agents. Agents pass a `session_id` to keep events separate for different users or conversations. Now with PostgreSQL persistence for durable storage. This project is entirely made by Vibe Coding.
+An MCP (Model Context Protocol) server that provides a session‑scoped calendar service for AI agents. Agents pass a `session_id` to keep events separate for different users or conversations. Data is persisted in PostgreSQL. This project is entirely made by Vibe Coding.
 
-## Why this exists
+**Why This Exists**
+- **Session isolation:** separate calendars per `session_id`.
+- **Straightforward CRUD:** create, list, get, update, delete.
+- **Portable runtime:** Node.js over stdio; easy Docker/Compose.
 
-- Session isolation: keep separate calendars per `session_id`.
-- Simple, fast CRUD: create, list, get, update, delete events.
-- Runs anywhere: Node.js via stdio, or containerized with Docker.
-
-## Project Plan
-
-1. Scaffold Node MCP server
-2. Implement in-memory calendar store
-3. Add CRUD tools with validation
-4. Add Dockerfile and .dockerignore
-5. Write README with intro and plan
-
-## Architecture
-
-- Runtime: Node.js (>= 18)
-- Protocol: MCP over stdio (via `@modelcontextprotocol/sdk`)
-- Storage: PostgreSQL (events keyed by `session_id`)
-- Tools:
+**Architecture**
+- **Runtime:** Node.js (>= 18)
+- **Protocol:** MCP over stdio (`@modelcontextprotocol/sdk` 1.x)
+- **Storage:** PostgreSQL (events keyed by `session_id`)
+- **Tools:**
   - `create_event(session_id, title, start, end, description?, location?, attendees?, status?)`
   - `list_events(session_id, range_start?, range_end?)`
   - `get_event(session_id, event_id)`
@@ -32,25 +22,19 @@ An MCP (Model Context Protocol) server that provides a session-scoped calendar s
 Event fields: `id`, `session_id`, `title`, `description?`, `location?`, `attendees[]`, `start`, `end`, `status`, `createdAt`, `updatedAt`.
 
 Notes:
-- `start`/`end` must be ISO 8601 strings; `end` must be after `start`.
-- Persistence: backed by PostgreSQL; schema auto-initializes on startup.
+- **Validation:** `start`/`end` must be ISO 8601; `end` > `start`.
+- **Schema:** auto‑initialized at startup.
 
-## Getting Started (Local)
+**Getting Started (Local)**
+- Prerequisites: Node.js 18+
+- Example:
+  - `export DATABASE_URL="postgres://postgres:postgres@localhost:5432/calendar_mcp"`
+  - `npm install`
+  - `npm start`
 
-Prerequisites: Node.js 18+
+The server speaks MCP over stdio and is typically launched by an MCP‑capable client (Claude Desktop or other MCP‑compatible tools). Ensure PostgreSQL is reachable via `DATABASE_URL` or `PG*` env vars.
 
-```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/calendar_mcp"
-npm install
-npm start
-```
-
-The server speaks MCP over stdio and is intended to be launched by an MCP-capable client (e.g., Claude Desktop or other MCP-compatible agents). Ensure PostgreSQL is reachable via `DATABASE_URL` or `PG*` env vars.
-
-### Example MCP client configuration
-
-If your client supports custom MCP servers via command/args, configure something like:
-
+**Example MCP Client Config**
 ```json
 {
   "mcpServers": {
@@ -63,69 +47,38 @@ If your client supports custom MCP servers via command/args, configure something
 }
 ```
 
-## Docker
+**Docker**
+- Build: `docker build -t calendar-mcp:latest .`
+- Run (stdio):
+  - `docker run --rm -i -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_mcp calendar-mcp:latest`
 
-Build the image:
+Most MCP clients spawn the server directly. If your client supports containers, point it at the `docker run ...` command above.
 
-```bash
-docker build -t calendar-mcp:latest .
-```
+**Docker Compose (Dev)**
+- Start both DB and server:
+  - `docker compose up --build`
+- Services:
+  - **db:** `postgres:16-alpine`, credentials `postgres/postgres`, DB `calendar_mcp`. Health‑checked via `pg_isready`. Not exposed on the host by default.
+  - **server:** calendar MCP server configured with `DATABASE_URL` pointing to `db`.
+- Host access to Postgres (optional):
+  - Add a non‑conflicting mapping, e.g. `ports: ["55432:5432"]`, then connect via `localhost:55432`.
 
-Run the server (stdio mode):
+**Portainer / Remote Git Builds**
+- The Dockerfile is lockfile‑aware and resilient, but builders must reach npmjs.
+- If your environment uses a mirror/proxy, set the build arg:
+  - In Compose: under `server.build.args`: `NPM_REGISTRY: https://registry.npmjs.org/`
+- For deterministic installs, generate and commit a `package-lock.json` locally so builds use `npm ci`.
 
-```bash
-docker run --rm -i \
-  -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_mcp \
-  calendar-mcp:latest
-```
+**Troubleshooting**
+- **Port in use (5432):** Another service is using host 5432. Either remove the mapping (containers can talk via the Compose network) or map a different host port (e.g. `55432:5432`).
+- **DB not ready (ECONNREFUSED):** The server waits on DB health via Compose. If you still see refusal, check `docker compose ps` (db should be `healthy`) and logs for both services.
+- **npm ETARGET (version not found):** Ensure you depend on a published SDK version (this repo uses `@modelcontextprotocol/sdk@^1.17.5`). If using Portainer with a proxy/mirror, set `NPM_REGISTRY` build arg so the builder can reach npmjs.
 
-Most MCP clients expect to spawn the server directly. If your client supports running tools in containers, point it to execute `docker run --rm -i -e DATABASE_URL=... calendar-mcp:latest` as the command for the server.
-
-## Docker Compose (Dev)
-
-Spin up Postgres and the server together:
-
-```bash
-docker compose up --build
-```
-
-This starts:
-- `db`: Postgres `postgres:16-alpine` with credentials `postgres/postgres` and DB `calendar_mcp` exposed on `5432`.
-- `server`: calendar MCP server with `DATABASE_URL` pointing to `db`.
-
-## Tool Reference
-
-- `create_event`
-  - Input: `{ session_id, title, start, end, description?, location?, attendees?, status? }`
-  - Output: JSON event object
-
-- `list_events`
-  - Input: `{ session_id, range_start?, range_end? }`
-  - Output: JSON array of events sorted by start time
-
-- `get_event`
-  - Input: `{ session_id, event_id }`
-  - Output: JSON event object
-
-- `update_event`
-  - Input: `{ session_id, event_id, ...patch }`
-  - Output: JSON event object
-
-- `delete_event`
-  - Input: `{ session_id, event_id }`
-  - Output: `{ success: boolean }`
-
-- `list_sessions`
-  - Input: `{}`
-  - Output: `[ session_id, ... ]`
-
-## Roadmap Ideas
-
-- Migrations with a tool (e.g., Prisma, node-pg-migrate)
+**Roadmap Ideas**
+- Migrations (Prisma, node‑pg‑migrate)
 - ICS import/export, recurring events, reminders
 - Conflict detection and availability queries
-- Authentication and multi-tenant hardening for network transports
+- Auth and multi‑tenant hardening for network transports
 
-## Attribution
-
+**Attribution**
 This project is entirely made by Vibe Coding.
