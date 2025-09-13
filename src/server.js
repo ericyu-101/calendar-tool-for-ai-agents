@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
 
+import { randomUUID } from "node:crypto"
+
+// this function ensures a valid Date object or throws
 function toDate(value, fieldName) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) {
@@ -13,6 +17,7 @@ function toDate(value, fieldName) {
   return d;
 }
 
+// Ensure that event end is after start
 function validateEventTimes(start, end) {
   if (end <= start) {
     const err = new Error("'end' must be after 'start'.");
@@ -21,6 +26,8 @@ function validateEventTimes(start, end) {
   }
 }
 
+
+// Serialize event DB object to API representation
 function serializeEvent(event) {
   return {
     id: event.id,
@@ -38,17 +45,23 @@ function serializeEvent(event) {
 
 // DB-backed utility: obtain events in range handled in SQL layer
 
-const server = new Server(
+// const server = new Server(
+//   {
+//     name: "calendar-mcp",
+//     version: "0.1.0",
+//   },
+//   {
+//     capabilities: {
+//       tools: {},
+//     },
+//   }
+// );
+
+const server = new McpServer(
   {
-    name: "calendar-mcp",
+    name: "calendar-mcp-server",
     version: "0.1.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
+  });
 
 // Initialize DB schema before handling tools
 await initSchema();
@@ -78,74 +91,116 @@ async function resolveToolSchemas() {
   return null;
 }
 
+// Local registry for tools if SDK registration methods are not available
 const toolRegistry = new Map();
+
+// Track whether we've already wired up schema handlers
 let schemasWired = false;
 
-function setSchemaHandler(schema, handler) {
-  for (const method of ["setRequestHandler", "addRequestHandler", "onRequest"]) {
-    const fn = server?.[method];
-    if (typeof fn === "function") {
-      fn.call(server, schema, handler);
-      return true;
-    }
-  }
-  return false;
-}
+// Attempt to set schema handler using any known method
+// function setSchemaHandler(schema, handler) {
+//   for (const method of ["setRequestHandler", "addRequestHandler", "onRequest"]) {
+//     const fn = server?.[method];
+//     if (typeof fn === "function") {
+//       fn.call(server, schema, handler);
+//       return true;
+//     }
+//   }
+//   return false;
+// }
 
-async function ensureSchemaFallback() {
-  if (schemasWired) return true;
-  const schemas = await resolveToolSchemas();
-  if (!schemas) return false;
-  const ok1 = setSchemaHandler(schemas.listSchema, async () => {
-    const tools = Array.from(toolRegistry.values()).map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    }));
-    return { tools };
-  });
-  const ok2 = setSchemaHandler(schemas.callSchema, async (req) => {
-    const p = req?.params ?? req ?? {};
-    const name = p.name ?? p.tool ?? p.toolName;
-    const args = p.arguments ?? p.args ?? p.input ?? {};
-    const t = toolRegistry.get(name);
-    if (!t) {
-      const err = new Error(`Tool not found: ${name}`);
-      err.code = "NOT_FOUND";
-      throw err;
-    }
-    return await t.handler({ input: args });
-  });
-  schemasWired = ok1 && ok2;
-  return schemasWired;
-}
+/**
+ * Ensures that the schema handlers for tool listing and tool invocation are set up.
+ *
+ * This function checks if the schema handlers have already been wired. If not, it resolves the tool schemas,
+ * sets up handlers for listing available tools and calling a specific tool, and marks the schemas as wired.
+ *
+ * @async
+ * @returns {Promise<boolean>} Returns true if the schema handlers are successfully set up or already wired, false otherwise.
+ */
+// async function ensureSchemaFallback() {
+//   if (schemasWired) return true;
+//   const schemas = await resolveToolSchemas();
+//   if (!schemas) return false;
+//   const ok1 = setSchemaHandler(schemas.listSchema, async () => {
+//     const tools = Array.from(toolRegistry.values()).map((t) => ({
+//       name: t.name,
+//       description: t.description,
+//       inputSchema: t.inputSchema,
+//     }));
+//     return { tools };
+//   });
+//   const ok2 = setSchemaHandler(schemas.callSchema, async (req) => {
+//     const p = req?.params ?? req ?? {};
+//     const name = p.name ?? p.tool ?? p.toolName;
+//     const args = p.arguments ?? p.args ?? p.input ?? {};
+//     const t = toolRegistry.get(name);
+//     if (!t) {
+//       const err = new Error(`Tool not found: ${name}`);
+//       err.code = "NOT_FOUND";
+//       throw err;
+//     }
+//     return await t.handler({ input: args });
+//   });
+//   schemasWired = ok1 && ok2;
+//   return schemasWired;
+// }
 
-const registerTool = (name, schema, handler) => {
-  const def = { name, description: schema.description, inputSchema: schema.inputSchema };
-  const tryCall = (method, args) => {
-    const fn = server?.[method];
-    if (typeof fn === "function") {
-      try {
-        return fn.apply(server, args);
-      } catch {}
-    }
-    return undefined;
-  };
-  if (tryCall("tool", [name, schema, handler])) return;
-  if (tryCall("tool", [def, handler])) return;
-  if (tryCall("addTool", [name, schema, handler])) return;
-  if (tryCall("addTool", [def, handler])) return;
-  if (tryCall("registerTool", [name, schema, handler])) return;
-  if (tryCall("registerTool", [def, handler])) return;
-  // Fallback path: register into local registry and ensure schema handlers
-  toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
-  // Trigger async wiring; top-level await is already used above so we can rely on it
-  // but we won't block registration since handlers will be present by first call/list.
-  ensureSchemaFallback();
-};
+
+/**
+ * Registers a tool with the server or local registry, attempting multiple registration methods for compatibility.
+ *
+ * Tries to register the tool using various server methods (`tool`, `addTool`, `registerTool`) with different argument shapes.
+ * If none succeed, falls back to registering the tool in a local registry and ensures schema handlers are set up.
+ *
+ * @param {string} name - The unique name of the tool to register.
+ * @param {Object} schema - The schema object describing the tool, including `description` and `inputSchema`.
+ * @param {Function} handler - The function that implements the tool's behavior.
+ */
+// const registerTool = (name, schema, handler) => {
+//   const def = { name, description: schema.description, inputSchema: schema.inputSchema };
+//   const tryCall = (method, args) => {
+//     const fn = server?.[method];
+//     if (typeof fn === "function") {
+//       try {
+//         return fn.apply(server, args);
+//       } catch {}
+//     }
+//     return undefined;
+//   };
+//   if (tryCall("tool", [name, schema, handler])) return;
+//   if (tryCall("tool", [def, handler])) return;
+//   if (tryCall("addTool", [name, schema, handler])) return;
+//   if (tryCall("addTool", [def, handler])) return;
+//   if (tryCall("registerTool", [name, schema, handler])) return;
+//   if (tryCall("registerTool", [def, handler])) return;
+//   // Fallback path: register into local registry and ensure schema handlers
+//   toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
+//   // Trigger async wiring; top-level await is already used above so we can rely on it
+//   // but we won't block registration since handlers will be present by first call/list.
+//   ensureSchemaFallback();
+// };
+
+// example to register a tool for mcp
+// Async tool with external API call
+// server.registerTool(
+//   "fetch-weather",
+//   {
+//     title: "Weather Fetcher",
+//     description: "Get weather data for a city",
+//     inputSchema: { city: z.string() }
+//   },
+//   async ({ city }) => {
+//     const response = await fetch(`https://api.weather.com/${city}`);
+//     const data = await response.text();
+//     return {
+//       content: [{ type: "text", text: data }]
+//     };
+//   }
+// );
 
 // create_event
-registerTool(
+server.registerTool(
   "create_event",
   {
     description: "Create a calendar event in a given session.",
@@ -171,7 +226,7 @@ registerTool(
     const end = toDate(input.end, "end");
     validateEventTimes(start, end);
 
-    const id = globalThis.crypto?.randomUUID?.() || (await import("node:crypto")).randomUUID();
+    const id = randomUUID();
     const now = new Date();
     const event = {
       id,
@@ -199,7 +254,7 @@ registerTool(
 );
 
 // list_events
-registerTool(
+server.registerTool(
   "list_events",
   {
     description: "List events for a session, optionally filtering by a time range.",
@@ -225,7 +280,7 @@ registerTool(
 );
 
 // get_event
-registerTool(
+server.registerTool(
   "get_event",
   {
     description: "Get a single event by ID within a session.",
@@ -251,7 +306,7 @@ registerTool(
 );
 
 // update_event
-registerTool(
+server.registerTool(
   "update_event",
   {
     description: "Update fields on an existing event.",
@@ -306,7 +361,7 @@ registerTool(
 );
 
 // delete_event
-registerTool(
+server.registerTool(
   "delete_event",
   {
     description: "Delete an event by ID within a session.",
@@ -327,7 +382,7 @@ registerTool(
 );
 
 // list_sessions (utility)
-registerTool(
+server.registerTool(
   "list_sessions",
   {
     description: "List all session IDs currently in memory.",
@@ -346,7 +401,13 @@ registerTool(
 const transport = new StdioServerTransport();
 server.connect(transport);
 
-// Graceful shutdown
+/**
+ * Sets up graceful shutdown handlers for the process.
+ *
+ * Listens for SIGINT (Ctrl+C) and SIGTERM (termination) signals.
+ * When either signal is received, attempts to close the database connection pool
+ * by calling `closePool()`, then exits the process cleanly.
+ */
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, async () => {
     try { await closePool(); } catch {}
