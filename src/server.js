@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
+import { createServer } from "node:http";
+import { URL } from "node:url";
 
 import { randomUUID } from "node:crypto"
 
@@ -266,3 +269,65 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
     process.exit(0);
   });
 }
+
+// SSE transport for n8n and other HTTP clients
+
+// Map of sessionId -> SSEServerTransport
+const sseTransports = new Map();
+
+const httpPort = Number(process.env.PORT || 3000);
+const httpServer = createServer(async (req, res) => {
+  if (!req.url || !req.method) {
+    res.statusCode = 400;
+    return res.end("Bad Request");
+  }
+
+  const url = new URL(req.url, `http://localhost:${httpPort}`);
+  // Open SSE stream: GET /sse
+  if (req.method === "GET" && url.pathname === "/sse") {
+    try {
+      const transport = new SSEServerTransport("/messages", res);
+      sseTransports.set(transport.sessionId, transport);
+      res.on("close", () => {
+        sseTransports.delete(transport.sessionId);
+      });
+      await server.connect(transport);
+    } catch (err) {
+      res.statusCode = 500;
+      res.end("Failed to establish SSE");
+    }
+    return;
+  }
+
+  // Receive messages: POST /messages?sessionId=...
+  if (req.method === "POST" && url.pathname === "/messages") {
+    const sessionId = url.searchParams.get("sessionId");
+    if (!sessionId) {
+      res.statusCode = 400;
+      return res.end("Missing sessionId");
+    }
+
+    const transport = sseTransports.get(sessionId);
+    if (!transport) {
+      res.statusCode = 400;
+      return res.end("No transport for sessionId");
+    }
+
+    try {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const json = body ? JSON.parse(body) : undefined;
+      await transport.handlePostMessage(req, res, json);
+    } catch (err) {
+      res.statusCode = 500;
+      res.end("Error handling message");
+    }
+    return;
+  }
+
+  // 404 for everything else
+  res.statusCode = 404;
+  res.end("Not Found");
+});
+
+httpServer.listen(httpPort);
