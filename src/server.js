@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { Server } from "@modelcontextprotocol/sdk/server";
+// import { Server } from "@modelcontextprotocol/sdk/server";
+import express from "express";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
@@ -68,28 +69,28 @@ await initSchema();
 
 // Compatibility: register tools using SDK APIs if available; otherwise
 // fall back to request-schema-based registration by discovering schemas at runtime.
-async function resolveToolSchemas() {
-  const candidateModules = [
-    "@modelcontextprotocol/sdk/types.js",
-    "@modelcontextprotocol/sdk/types",
-    "@modelcontextprotocol/sdk/server/types.js",
-    "@modelcontextprotocol/sdk/server/types",
-    "@modelcontextprotocol/sdk/shared/protocol.js",
-    "@modelcontextprotocol/sdk/dist/esm/shared/protocol.js",
-  ];
-  for (const mod of candidateModules) {
-    try {
-      const m = await import(mod);
-      const values = Object.values(m);
-      const findByMethod = (method) =>
-        values.find((v) => v && v.shape && v.shape.method && v.shape.method.value === method);
-      const listSchema = findByMethod("tools/list");
-      const callSchema = findByMethod("tools/call");
-      if (listSchema && callSchema) return { listSchema, callSchema };
-    } catch {}
-  }
-  return null;
-}
+// async function resolveToolSchemas() {
+//   const candidateModules = [
+//     "@modelcontextprotocol/sdk/types.js",
+//     "@modelcontextprotocol/sdk/types",
+//     "@modelcontextprotocol/sdk/server/types.js",
+//     "@modelcontextprotocol/sdk/server/types",
+//     "@modelcontextprotocol/sdk/shared/protocol.js",
+//     "@modelcontextprotocol/sdk/dist/esm/shared/protocol.js",
+//   ];
+//   for (const mod of candidateModules) {
+//     try {
+//       const m = await import(mod);
+//       const values = Object.values(m);
+//       const findByMethod = (method) =>
+//         values.find((v) => v && v.shape && v.shape.method && v.shape.method.value === method);
+//       const listSchema = findByMethod("tools/list");
+//       const callSchema = findByMethod("tools/call");
+//       if (listSchema && callSchema) return { listSchema, callSchema };
+//     } catch {}
+//   }
+//   return null;
+// }
 
 // Local registry for tools if SDK registration methods are not available
 const toolRegistry = new Map();
