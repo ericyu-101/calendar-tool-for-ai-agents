@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-// import { Server } from "@modelcontextprotocol/sdk/server";
-import express from "express";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
 
@@ -44,20 +42,6 @@ function serializeEvent(event) {
   };
 }
 
-// DB-backed utility: obtain events in range handled in SQL layer
-
-// const server = new Server(
-//   {
-//     name: "calendar-mcp",
-//     version: "0.1.0",
-//   },
-//   {
-//     capabilities: {
-//       tools: {},
-//     },
-//   }
-// );
-
 const server = new McpServer(
   {
     name: "calendar-mcp-server",
@@ -66,139 +50,6 @@ const server = new McpServer(
 
 // Initialize DB schema before handling tools
 await initSchema();
-
-// Compatibility: register tools using SDK APIs if available; otherwise
-// fall back to request-schema-based registration by discovering schemas at runtime.
-// async function resolveToolSchemas() {
-//   const candidateModules = [
-//     "@modelcontextprotocol/sdk/types.js",
-//     "@modelcontextprotocol/sdk/types",
-//     "@modelcontextprotocol/sdk/server/types.js",
-//     "@modelcontextprotocol/sdk/server/types",
-//     "@modelcontextprotocol/sdk/shared/protocol.js",
-//     "@modelcontextprotocol/sdk/dist/esm/shared/protocol.js",
-//   ];
-//   for (const mod of candidateModules) {
-//     try {
-//       const m = await import(mod);
-//       const values = Object.values(m);
-//       const findByMethod = (method) =>
-//         values.find((v) => v && v.shape && v.shape.method && v.shape.method.value === method);
-//       const listSchema = findByMethod("tools/list");
-//       const callSchema = findByMethod("tools/call");
-//       if (listSchema && callSchema) return { listSchema, callSchema };
-//     } catch {}
-//   }
-//   return null;
-// }
-
-// Local registry for tools if SDK registration methods are not available
-const toolRegistry = new Map();
-
-// Track whether we've already wired up schema handlers
-let schemasWired = false;
-
-// Attempt to set schema handler using any known method
-// function setSchemaHandler(schema, handler) {
-//   for (const method of ["setRequestHandler", "addRequestHandler", "onRequest"]) {
-//     const fn = server?.[method];
-//     if (typeof fn === "function") {
-//       fn.call(server, schema, handler);
-//       return true;
-//     }
-//   }
-//   return false;
-// }
-
-/**
- * Ensures that the schema handlers for tool listing and tool invocation are set up.
- *
- * This function checks if the schema handlers have already been wired. If not, it resolves the tool schemas,
- * sets up handlers for listing available tools and calling a specific tool, and marks the schemas as wired.
- *
- * @async
- * @returns {Promise<boolean>} Returns true if the schema handlers are successfully set up or already wired, false otherwise.
- */
-// async function ensureSchemaFallback() {
-//   if (schemasWired) return true;
-//   const schemas = await resolveToolSchemas();
-//   if (!schemas) return false;
-//   const ok1 = setSchemaHandler(schemas.listSchema, async () => {
-//     const tools = Array.from(toolRegistry.values()).map((t) => ({
-//       name: t.name,
-//       description: t.description,
-//       inputSchema: t.inputSchema,
-//     }));
-//     return { tools };
-//   });
-//   const ok2 = setSchemaHandler(schemas.callSchema, async (req) => {
-//     const p = req?.params ?? req ?? {};
-//     const name = p.name ?? p.tool ?? p.toolName;
-//     const args = p.arguments ?? p.args ?? p.input ?? {};
-//     const t = toolRegistry.get(name);
-//     if (!t) {
-//       const err = new Error(`Tool not found: ${name}`);
-//       err.code = "NOT_FOUND";
-//       throw err;
-//     }
-//     return await t.handler({ input: args });
-//   });
-//   schemasWired = ok1 && ok2;
-//   return schemasWired;
-// }
-
-
-/**
- * Registers a tool with the server or local registry, attempting multiple registration methods for compatibility.
- *
- * Tries to register the tool using various server methods (`tool`, `addTool`, `registerTool`) with different argument shapes.
- * If none succeed, falls back to registering the tool in a local registry and ensures schema handlers are set up.
- *
- * @param {string} name - The unique name of the tool to register.
- * @param {Object} schema - The schema object describing the tool, including `description` and `inputSchema`.
- * @param {Function} handler - The function that implements the tool's behavior.
- */
-// const registerTool = (name, schema, handler) => {
-//   const def = { name, description: schema.description, inputSchema: schema.inputSchema };
-//   const tryCall = (method, args) => {
-//     const fn = server?.[method];
-//     if (typeof fn === "function") {
-//       try {
-//         return fn.apply(server, args);
-//       } catch {}
-//     }
-//     return undefined;
-//   };
-//   if (tryCall("tool", [name, schema, handler])) return;
-//   if (tryCall("tool", [def, handler])) return;
-//   if (tryCall("addTool", [name, schema, handler])) return;
-//   if (tryCall("addTool", [def, handler])) return;
-//   if (tryCall("registerTool", [name, schema, handler])) return;
-//   if (tryCall("registerTool", [def, handler])) return;
-//   // Fallback path: register into local registry and ensure schema handlers
-//   toolRegistry.set(name, { name, description: schema.description, inputSchema: schema.inputSchema, handler });
-//   // Trigger async wiring; top-level await is already used above so we can rely on it
-//   // but we won't block registration since handlers will be present by first call/list.
-//   ensureSchemaFallback();
-// };
-
-// example to register a tool for mcp
-// Async tool with external API call
-// server.registerTool(
-//   "fetch-weather",
-//   {
-//     title: "Weather Fetcher",
-//     description: "Get weather data for a city",
-//     inputSchema: { city: z.string() }
-//   },
-//   async ({ city }) => {
-//     const response = await fetch(`https://api.weather.com/${city}`);
-//     const data = await response.text();
-//     return {
-//       content: [{ type: "text", text: data }]
-//     };
-//   }
-// );
 
 // create_event
 server.registerTool(
