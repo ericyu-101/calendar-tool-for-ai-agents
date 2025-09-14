@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { initSchema, createEvent as dbCreate, listEvents as dbList, getEvent as dbGet, updateEvent as dbUpdate, deleteEvent as dbDelete, listSessions as dbListSessions, closePool } from "./db.js";
 import { createServer } from "node:http";
@@ -253,8 +252,7 @@ server.registerTool(
   }
 );
 
-const transport = new StdioServerTransport();
-server.connect(transport);
+// stdio transport removed; using HTTP SSE transport only
 
 /**
  * Sets up graceful shutdown handlers for the process.
