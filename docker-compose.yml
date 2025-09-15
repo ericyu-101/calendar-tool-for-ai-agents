@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: calendar_mcp
+      POSTGRES_DB: calendar_db
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,19 +19,14 @@ services:
   api:
     build:
       context: .
-      args:
-        BUILD_ID: "force-2025-09-11-15-40"
-        NPM_REGISTRY: "https://registry.npmjs.org/"
     container_name: calendar_server
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/calendar_mcp
+      DATABASE_URL: postgres://postgres:postgres@db:5432/calendar_db
       NODE_ENV: production
     depends_on:
       db:
         condition: service_healthy
-    stdin_open: true
-    tty: true
 
 volumes:
   pgdata:
