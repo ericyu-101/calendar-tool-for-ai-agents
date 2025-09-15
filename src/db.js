@@ -26,7 +26,7 @@ const pool = new Pool(
         port: Number(env("PGPORT", 5432)),
         user: env("PGUSER", "postgres"),
         password: env("PGPASSWORD", "postgres"),
-        database: env("PGDATABASE", "calendar_mcp"),
+        database: env("PGDATABASE", "calendar_db"),
         ssl: env("PGSSL", "false") === "true" ? { rejectUnauthorized: false } : undefined,
       }
 );
