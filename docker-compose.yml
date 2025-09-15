@@ -2,7 +2,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: calendar_mcp_db
+    container_name: calendar_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -16,13 +16,13 @@ services:
       timeout: 3s
       retries: 20
 
-  service:
+  api:
     build:
       context: .
       args:
         BUILD_ID: "force-2025-09-11-15-40"
         NPM_REGISTRY: "https://registry.npmjs.org/"
-    container_name: calendar_mcp_server
+    container_name: calendar_server
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/calendar_mcp

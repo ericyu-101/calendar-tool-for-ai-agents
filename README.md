@@ -53,9 +53,9 @@ Docker Compose (Dev)
 - `docker compose up --build`
 - Services:
   - db: Postgres 16 (user/pass `postgres/postgres`, DB `calendar_mcp`)
-  - service: REST API, waits on db health; configure `DATABASE_URL` to point at `db`.
+  - api: REST API, waits on db health; configure `DATABASE_URL` to point at `db`.
 - Optional host Postgres port: add `ports: ["55432:5432"]` under `db`.
-- Optional API port: add `ports: ["3000:3000"]` under `service`.
+- Optional API port: add `ports: ["3000:3000"]` under `api`.
 
 Troubleshooting
 - DB not ready: check `docker compose ps` and logs. The `db` service should be healthy.
