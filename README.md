@@ -1,6 +1,6 @@
 # Calendar MCP Server
 
-An MCP (Model Context Protocol) server that provides a session‑scoped calendar service for AI agents. Agents pass a `session_id` to keep events separate for different users or conversations. Data is persisted in PostgreSQL. This project is entirely made by Vibe Coding.
+An MCP (Model Context Protocol) server that provides a session‑scoped calendar service for AI agents. Agents pass a `session_id` to keep events separate for different users or conversations. Data is persisted in PostgreSQL.
 
 What is MCP? See the Model Context Protocol overview: https://modelcontextprotocol.io/about/index
 
@@ -91,4 +91,4 @@ Point HTTP‑capable MCP clients at `http://localhost:3000` (or your host/port).
 - See the up‑to‑date client list and feature matrix: https://modelcontextprotocol.io/clients
 
 **Attribution**
-This project is entirely made by Vibe Coding.
+This is a vibe-coding project. The repository was created primarily with an AI coding agent, with a few human touches to clarify intent and optimize the structure.
