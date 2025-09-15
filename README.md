@@ -11,11 +11,29 @@ Architecture
 - Validation: ISO 8601 datetimes; `end` must be after `start`
 
 Getting Started (Local)
-- Prerequisites: Node.js 18+, PostgreSQL
-- Example:
+- Prerequisites: Node.js 18+
+- Start Postgres in Docker first (see "Local Postgres (Docker)" below).
+- Configure environment and run the API:
   - `export DATABASE_URL="postgres://postgres:postgres@localhost:5432/calendar_db"`
   - `npm install`
   - `npm start` (listens on `PORT` or `3000`)
+
+Local Postgres (Docker)
+- Create the Docker volume for persistent data: `docker volume create pgdata`
+- Start a local Postgres 16 instance on `localhost:5432` matching the compose settings:
+  - `docker run -d --name calendar_db --restart unless-stopped \
+    -p 5432:5432 \
+    -e POSTGRES_USER=postgres \
+    -e POSTGRES_PASSWORD=postgres \
+    -e POSTGRES_DB=calendar_db \
+    -v pgdata:/var/lib/postgresql/data \
+    --health-cmd='pg_isready -U postgres' \
+    --health-interval=3s \
+    --health-timeout=3s \
+    --health-retries=20 \
+    postgres:16-alpine`
+- Then set `DATABASE_URL` as shown above to point at `localhost:5432`.
+- Stop/remove when done: `docker stop calendar_db && docker rm calendar_db`
 
 Health Check
 - `GET /health` -> `{ "ok": true }`
