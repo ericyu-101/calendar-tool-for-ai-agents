@@ -13,7 +13,7 @@ Architecture
 Getting Started (Local)
 - Prerequisites: Node.js 18+, PostgreSQL
 - Example:
-  - `export DATABASE_URL="postgres://postgres:postgres@localhost:5432/calendar_mcp"`
+  - `export DATABASE_URL="postgres://postgres:postgres@localhost:5432/calendar_db"`
   - `npm install`
   - `npm start` (listens on `PORT` or `3000`)
 
@@ -47,13 +47,14 @@ Event JSON
 
 Docker
 - Build: `docker build -t calendar-tool-for-ai-agents:latest .`
-- Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_mcp calendar-tool-for-ai-agents:latest`
+- Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_db calendar-tool-for-ai-agents:latest`
 
 Docker Compose (Dev)
 - `docker compose up --build`
 - Services:
   - db: Postgres 16 (user/pass `postgres/postgres`, DB `calendar_mcp`)
   - api: REST API, waits on db health; configure `DATABASE_URL` to point at `db`.
+    - Example: `DATABASE_URL=postgres://postgres:postgres@db:5432/calendar_db`
 - Optional host Postgres port: add `ports: ["55432:5432"]` under `db`.
 - Optional API port: add `ports: ["3000:3000"]` under `api`.
 
