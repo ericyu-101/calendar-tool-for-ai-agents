@@ -1,5 +1,4 @@
 # Calendar Tool for AI Agents
-123
 
 A lightweight REST API for a session‑scoped calendar service backed by PostgreSQL. Your AI agent can call this over HTTP to create, list, read, update, and delete events in a given `session_id`. This project name reflects future flexibility to integrate MCP again if desired.
 
