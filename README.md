@@ -1,6 +1,6 @@
-# Calendar REST Server
+# Calendar Tool for AI Agents
 
-A lightweight REST API for a session‑scoped calendar service backed by PostgreSQL. Your AI agent can call this over HTTP to create, list, read, update, and delete events in a given `session_id`.
+A lightweight REST API for a session‑scoped calendar service backed by PostgreSQL. Your AI agent can call this over HTTP to create, list, read, update, and delete events in a given `session_id`. This project name reflects future flexibility to integrate MCP again if desired.
 
 Why this refactor: previously this project implemented MCP over HTTP SSE. To avoid churn from evolving MCP specs, this version exposes a stable REST API surface while keeping the same data model and Postgres storage.
 
@@ -46,8 +46,8 @@ Event JSON
   - All datetime fields are ISO 8601 strings.
 
 Docker
-- Build: `docker build -t calendar-rest:latest .`
-- Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_mcp calendar-rest:latest`
+- Build: `docker build -t calendar-tool-for-ai-agents:latest .`
+- Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_mcp calendar-tool-for-ai-agents:latest`
 
 Docker Compose (Dev)
 - `docker compose up --build`

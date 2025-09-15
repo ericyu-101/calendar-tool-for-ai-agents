@@ -1,7 +1,7 @@
 {
-  "name": "calendar-rest-server",
+  "name": "calendar-tool-for-ai-agents",
   "version": "0.1.0",
-  "description": "A REST API server providing a session-scoped calendar service backed by PostgreSQL.",
+  "description": "Calendar Tool for AI Agents: REST API for session-scoped calendar data.",
   "type": "module",
   "bin": {},
   "scripts": {
