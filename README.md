@@ -18,6 +18,14 @@ Getting Started (Local)
   - `npm install`
   - `npm start` (listens on `PORT` or `3000`)
 
+Local Test Script
+- Run automated CRUD test against the local server:
+  - `bash scripts/test-local.sh` (defaults to session `test-123`)
+- Optional arguments:
+  - Use a custom session: `bash scripts/test-local.sh my-session`
+  - Target a different URL: `BASE_URL=http://127.0.0.1:3000 bash scripts/test-local.sh`
+- Prerequisites: Postgres running and API started (see sections above).
+
 Local Postgres (Docker)
 - Create the Docker volume for persistent data: `docker volume create pgdata`
 - Start a local Postgres 16 instance on `localhost:5432` matching the compose settings:
