@@ -1,17 +1,15 @@
 {
-  "name": "calendar-mcp-server",
+  "name": "calendar-rest-server",
   "version": "0.1.0",
-  "description": "A Model Context Protocol (MCP) server providing a session-scoped calendar service for AI agents.",
+  "description": "A REST API server providing a session-scoped calendar service backed by PostgreSQL.",
   "type": "module",
-  "bin": {
-    "calendar-mcp": "src/server.js"
-  },
+  "bin": {},
   "scripts": {
     "start": "node src/server.js"
   },
   "keywords": [
-    "mcp",
-    "model-context-protocol",
+    "rest",
+    "http",
     "calendar",
     "ai",
     "agent"
@@ -19,7 +17,6 @@
   "author": "Eric Yu",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.5",
     "pg": "^8.12.0"
   },
   "engines": {

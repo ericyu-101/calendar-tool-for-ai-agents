@@ -32,5 +32,5 @@ COPY src ./src
 # Environment (override in runtime as needed)
 ENV NODE_ENV=production
 
-# Default command runs the MCP server over stdio
+# Default command runs the REST API server
 CMD ["node", "src/server.js"]
