@@ -19,11 +19,12 @@ Getting Started (Local)
   - `npm start` (listens on `PORT` or `3000`)
 
 Local Test Script
-- Run automated CRUD test against the local server:
-  - `bash scripts/test-local.sh` (defaults to session `test-123`)
+- Run the CRUD smoke test via the npm wrapper (calls `scripts/test-local.sh` under the hood):
+  - `npm test` (defaults to session `test-123`)
 - Optional arguments:
-  - Use a custom session: `bash scripts/test-local.sh my-session`
-  - Target a different URL: `BASE_URL=http://127.0.0.1:3000 bash scripts/test-local.sh`
+  - Use a custom session: `npm test -- my-session`
+  - Target a different URL: `BASE_URL=http://127.0.0.1:3000 npm test`
+- You can still execute the Bash script directly if you prefer: `bash scripts/test-local.sh …`
 - Prerequisites: Postgres running and API started (see sections above).
 
 Local Postgres (Docker)

@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {},
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "bash scripts/test-local.sh"
   },
   "keywords": [
     "rest",
