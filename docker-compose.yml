@@ -19,7 +19,8 @@ services:
       - private
 
   api:
-    image: eric0201/calendar-tool-for-ai-agents:latest
+    build:
+      context: .
     container_name: calendar_server
     restart: unless-stopped
     environment:
