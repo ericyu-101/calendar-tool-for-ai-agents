@@ -10,7 +10,7 @@ Architecture
 - Storage: PostgreSQL (events keyed by `session_id`)
 - Validation: ISO 8601 datetimes; `end` must be after `start`
 
-Getting Started (Local)
+## Getting Started (Local)
 - Prerequisites: Node.js 18+
 - Start Postgres in Docker first (see "Local Postgres (Docker)" below).
 - Configure environment and run the API:
@@ -77,12 +77,17 @@ Docker
 - Build: `docker build -t calendar-tool-for-ai-agents:latest .`
 - Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_db calendar-tool-for-ai-agents:latest`
 
-Docker Compose (Dev)
+## Getting Started with Docker Compose (Dev)
+- Ensure the shared stack network exists (only needs to be created once):
+  - `docker network create shared_network`
 - `docker compose up --build`
 - Services:
   - db: Postgres 16 (user/pass `postgres/postgres`, DB `calendar_mcp`)
   - api: REST API, waits on db health; configure `DATABASE_URL` to point at `db`.
     - Example: `DATABASE_URL=postgres://postgres:postgres@db:5432/calendar_db`
+- Networking:
+  - Internal traffic (API ↔ DB) stays on the private bridge network declared in compose.
+  - The API also joins the shared `shared_network` so other containers in the stack can call it.
 - Optional host Postgres port: add `ports: ["55432:5432"]` under `db`.
 - Optional API port: add `ports: ["3000:3000"]` under `api`.
 
