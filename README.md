@@ -97,5 +97,6 @@ Roadmap Ideas
 - ICS import/export, recurring events, reminders
 - Availability queries and conflict detection
 
-Attribution
-This project started as an MCP server and was refactored to REST to prioritize stability for agent integrations.
+Project History
+- Originally shipped as an MCP server that streamed responses over HTTP SSE.
+- Refactored to a REST API to deliver a more stable surface for agent integrations while retaining the same data model and Postgres storage.
