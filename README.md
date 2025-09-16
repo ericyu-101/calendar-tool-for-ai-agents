@@ -1,8 +1,8 @@
 # Calendar Tool for AI Agents
 
-A lightweight REST API for a session‑scoped calendar service backed by PostgreSQL. Your AI agent can call this over HTTP to create, list, read, update, and delete events in a given `session_id`. This project name reflects future flexibility to integrate MCP again if desired.
+A lightweight REST API for a session‑scoped calendar service backed by PostgreSQL. Your AI agent can call this over HTTP to create, list, read, update, and delete events in a given `session_id`.
 
-Why this refactor: previously this project implemented MCP over HTTP SSE. To avoid churn from evolving MCP specs, this version exposes a stable REST API surface while keeping the same data model and Postgres storage.
+You can also wrap these API endpoints into an MCP server and connect them to your AI agent of choice. Since this tool is designed to work with AI agents built with n8n, a simple REST API server is the most straightforward method for integration.
 
 Architecture
 - Runtime: Node.js (>= 18)
@@ -100,3 +100,5 @@ Roadmap Ideas
 Project History
 - Originally shipped as an MCP server that streamed responses over HTTP SSE.
 - Refactored to a REST API to deliver a more stable surface for agent integrations while retaining the same data model and Postgres storage.
+
+Why this refactor: previously this project implemented MCP over HTTP SSE. To avoid churn from evolving MCP specs, this version exposes a stable REST API surface while keeping the same data model and Postgres storage.
