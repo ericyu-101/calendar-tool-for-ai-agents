@@ -76,6 +76,11 @@ Event JSON
 Docker
 - Build: `docker build -t calendar-tool-for-ai-agents:latest .`
 - Run: `docker run --rm -p 3000:3000 -e PORT=3000 -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/calendar_db calendar-tool-for-ai-agents:latest`
+- Multi-arch push (replace `your-dockerhub-user` and `tag`):
+  ```bash
+  docker buildx build --platform linux/amd64,linux/arm64,windows/amd64 \
+    -t your-dockerhub-user/calendar-server:tag --push .
+  ```
 
 ## Getting Started with Docker Compose (Dev)
 - Ensure the shared stack network exists (only needs to be created once):
