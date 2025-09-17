@@ -38,6 +38,7 @@ volumes:
 
 networks:
   private:
+    internal: true
   stack-shared:
     external: true
     name: shared_network
