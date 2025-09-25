@@ -1,0 +1,54 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+.eslintcache
+.node_repl_history
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+lib/
+out/
+tmp/
+temp/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+.parcel-cache/
+.turbo/
+
+# Framework/platform deploys
+.vercel/
+.netlify/
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc patch/merge artifacts
+*.orig
+*.rej
